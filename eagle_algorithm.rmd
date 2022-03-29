@@ -1,0 +1,229 @@
+---
+title: "eagle algorithm"
+output: html_notebook
+---
+
+## Eagle Algorithm Simple Version
+
+Suppose that there is no repeated observation (Z = I), no missing value in genotype data.\
+And the phenotype data is single dimension.
+
+TODO: release the hypothesis of repeated observation
+
+TODO: Deal with big matrix and parallelization:\
+1. OpenBLAS - An optimized BLAS (Basic Linear Algebra Subprograms) Library\
+2. GPU - library: Torch, Keras (less active: gpuR, gputools, gmatrix, magma, coudaBayesreg, permGPU)\
+3. C++ - library: Rcpp, Integration of R and C++\
+4. OpenCL - library: OpenCL, Open Computing Language, Open Standard for Parallel Programming of Heterogeneous Systems
+
+The name of functions follow such style : do.something(), do.some.vector(), do.some.Matrix()\
+The name of variables follow such style : some_data, some_vector, Some_Matrix
+
+#### Verify if a matrix is positive definite
+
+```{r}
+is.positive.definite <-  function (X, tol = 1e-08) {
+  values <- abs(eigen(X, only.values = TRUE)$values)
+  if (sum(values < tol) > 0) {
+    return(FALSE)
+  }
+  return(TRUE)
+}
+```
+
+#### Build X matrix, X is the selected locus genotype data
+
+dimension of X : n x p\
+p = length(selected_locus)\
+n is the number of observations
+
+```{r}
+build.X <- function (geno, loci_indx) {
+  
+  X <- matrix(data = 1, nrow = nrow(geno), ncol = 1)
+  
+  if (!is.na(loci_indx)) {
+    X <- cbind(X, geno[, loci_indx])
+  }
+  
+  if (!is.na(colnames(geno))) {
+    colnames(X) <- c("intercept", colnames(geno)[loci_indx])
+  }
+  
+  return(as.matrix(X))
+}
+```
+
+#### build MMt, then calculate eigen value and eigen vector, square root and inverse of square root of MMt
+
+M is the genotype data
+
+```{r}
+build.MMt <- function (geno, selected_locus) {
+  
+  # build matrix of SNP genotype data in S removed,  dimension of M_s: ng x L, L is large
+  build.M_s <- function (geno, selected_locus) {
+    ## set selected_locus to 0 
+    M_s <- geno
+    M_s[, selected_locus] <- 0
+    return(M_s)
+  }
+  
+  # calculate MMt, dimension of MMt: ng x ng
+  calc.MMt <- function (M) {
+    MMt <- crossprod(M)
+    
+    ## Trick for dealing with singular MMt due to collinearity
+    MMt <- MMt/max(MMt) + diag(0.95, nrow(MMt))
+    return(MMt)
+  }
+  
+  calc.SqrtMMt <- function(MMt) {
+    sqrt_MMt <- MMt.eigen$vectors %*% diag(sqrt(MMt.eigen$values)) %*% t(MMt.eigen$vectors)
+    return(sqrt_MMt)
+  }
+  
+  calc.InvSqrtMMt <- function(sqrt_MMt) {
+    inv_sqrt_MMt <- chol2inv(chol(sqrt_MMt))
+    return(inv_sqrt_MMt)
+  }
+  
+  selected_locus <- c(selected_locus)
+  M_s <- build.M_s(geno,selected_locus)
+  MMt_ <- calc.MMt(M_s)
+  inv_MMt <- chol2inv(chol(MMt_)) 
+  sqrt_MMt <- calc.SqrtMMt(MMt_)
+  inv_sqrt_MMt <- calc.InvSqrtMMt(sqrt_MMt)
+  
+  MMt <- eigen(MMt_, symmetric = TRUE)
+  MMt$MMt <- MMt_
+  MMt$inv <- inv_MMt
+  MMt$sqrt <- sqrt_MMt
+  MMt$invsqrt <- inv_sqrt_MMt
+  
+  return(MMt)
+}
+```
+
+#### Calculate Ug
+
+```{r}
+
+calc.Ug <- function (Y, X, Ze) {
+  # simple size
+  n <- length(Y) 
+  # number of individuals/lines/strains with ng <= n
+  ng <- nrow(Ze$MMt)
+  # fixed effect dimension
+  p <- ncol(X)
+  
+  calc.logLikelihood <- function() {
+    
+  }
+  
+  calc.derivateLogLikelihood <- function() {
+    
+  }
+  
+  calc.maximumLikelihoodEstimation <- function() {
+    
+  }
+  
+  if (det(crossprod(X, X)) == 0) {
+    warning("X is singular")
+    return(list(ML = 0, delta = 0, ve = 0, vg = 0))
+  }
+  
+  
+  
+}
+
+```
+
+#### find QTL - Quantitative trait locus
+
+```{r}
+
+find.QTL <- function () {
+  
+  # blup : the best linear unbiased predictor: a_tilde
+  
+  # calculate a and var(a)
+  
+  # t^2 = a_tilde^2 / var(a_tilde)^2
+  
+}
+
+```
+
+#### Load genotype and phenotype Data
+
+```{r}
+
+#### init data
+
+geno_Obj <- NULL
+pheo_Obj <- NULL
+
+```
+
+```{r}
+
+simpleEagle <- function (pheno_mat, geno_mat, max_itr_num = 100, fixit = FALSE) {
+  
+  #### init loop 
+  continue <- TRUE
+  itr_num <- 0
+  selected_locus <- c()
+
+  while (continue) {
+  
+    #### #### #### ####    STEP 1 SNP Selection   #### #### #### ####
+
+    # there is no SNP selection in the first iteration (itr_num == 0)
+    if (itr_num) { 
+      new_selected_loci <- find.QTL()
+      selected_locus <- c(selected_locus, new_selected_loci)
+    }
+  
+    #### #### #### ####    STEP 2 model building and fitting   #### #### #### ####
+    # mixed model: Y = X%*%tou + Z %*% Ug + e
+    
+    #### build X: fixed effect design matrix
+    X <- build.X(geno = geno_mat, loci_indx = selected_locus)
+  
+    #### Ze = (MMt)^0.5, 
+    # Ze$values: eigne values of MMt
+    # Ze$vectors: eigne vectors of MMt
+    # TRICK: it calculates eigen values and eigen vectors of MMt instead of square root
+    Ze <- build.Ze(geno = geno_mat, selected_locus = selected_locus)
+  
+    #### Ug = sum(ms_k * as_k) + Ze %*% a* = sum(additive effect of kth SNP) + random genetic effect 
+    Ug <- calc.Ug()
+    
+    
+    #### #### #### ####    STEP 3 model selection   #### #### #### #### 
+    
+    # calculate extBIC
+    extBIC <- calc.ExtBIC() 
+    
+    extBIC_history <- c(extBIC_history, extBIC)
+    
+    #### Termination Conditions: 
+    # 1. iteration number > maximum iteration number
+    # 2. new extBIC < last extBIC
+    itr_num <- itr_num + 1
+    
+    if (itr_num > max_itr_num ) {
+      continue <- FALSE
+    }
+    
+    if (!fixit && extBIC < max(extBIC_history)) {
+        continue <- FALSE
+    }
+  }
+}
+
+
+
+```

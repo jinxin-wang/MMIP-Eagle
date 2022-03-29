@@ -1,0 +1,113 @@
+---
+title: "Introduce to Eagle library"
+output: html_notebook
+---
+
+```{r}
+library("Eagle")
+```
+
+### Télécharger la donée et décompresser
+
+```{r}
+DIR <- "https://raw.githubusercontent.com/geo047/Example_Data/master/"
+
+if (!file.exists("mapex.dat")) {
+  download.file(paste0(DIR, "mapex.dat"))
+}
+
+if (!file.exists("phenoex.dat")) {
+  download.file(paste0(DIR, "phenoex.dat"))
+}
+
+if (!file.exists("genoex.dat.zip")) {
+  download.file(paste0(DIR, "genoex.dat.zip"))  
+}
+
+if (!file.exists("genoex.dat")) {
+  unzip("genoex.dat.zip")  
+}
+```
+
+### Load data to objects
+
+```{r}
+genoObj <- ReadMarker("genoex.dat", type = "text", AA = 0, AB = 1, BB = 2)
+mapObj <- ReadMap("mapex.dat")
+# ReadZmat("") # No repeated observation
+phenoObj <- ReadPheno("phenoex.dat")
+```
+
+#### Explore data
+
+```{r}
+# summary(phenoObj)
+head(phenoObj)
+head(mapObj)
+```
+
+### Association mapping analysis
+
+```{r}
+?AM
+
+# Bioch.HDL : high-density lipoprotein
+
+am_res <- AM(trait = "Bioch.HDL", fformula = "Sex+Batch+Weight.Average", 
+             geno = genoObj, pheno = phenoObj, map = mapObj, 
+             ncpu = 8, lambda = 0.78)
+```
+
+##### set lambda to a slightly different value
+
+```{r}
+am_res1 <- AM(trait = "Bioch.HDL", fformula = "Sex+Batch+Weight.Average", 
+             geno = genoObj, pheno = phenoObj, map = mapObj, 
+             ncpu = 8, lambda = 0.62)
+```
+
+### Controlling the type 1 error rate
+
+```{r}
+?FPR4AM
+fdr <- FPR4AM(falseposrate = 0.05, trait = "Bioch.HDL", numreps = 100, 
+              fformula = "Sex+Batch+Weight.Average", 
+              pheno = phenoObj, geno = genoObj, map = mapObj, ncpu = 8)
+
+
+```
+
+#### Set lambda to 0.5306122
+
+```{r}
+
+am_res2 <- AM(trait = "Bioch.HDL", fformula = "Sex+Batch+Weight.Average", 
+             geno = genoObj, pheno = phenoObj, map = mapObj, 
+             ncpu = 8, lambda = 0.5306122)
+
+```
+
+#### Summarizing the results
+
+```{r}
+?SummaryAM
+SummaryAM(AMobj = am_res2)
+```
+
+#### Visualizing the findings
+
+```{r}
+?PlotAM
+
+PlotAM(AMobj = am_res2, itnum = 1, chr = "5", type = "Manhattan") # type = "score"
+```
+
+```{r}
+PlotAM(AMobj = am_res2, itnum = 2, chr = "6", type = "score")
+```
+
+#### Browser-based Graphical User Interface
+
+```{r}
+?OpenGUI
+```
